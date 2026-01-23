@@ -1,51 +1,38 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import { XMarkIcon } from '@heroicons/react/24/outline'
-
-const MODULES = ['clients'] // Can be extended with more modules
-const LEVELS = [
-  { value: 'read', label: 'Read' },
-  { value: 'create', label: 'Create' },
-  { value: 'edit', label: 'Edit' },
-  { value: 'manage', label: 'Manage' },
-  { value: 'admin', label: 'Admin' },
-]
-const OWNERSHIP_TYPES = [
-  { value: 'self', label: 'Self' },
-  { value: 'group', label: 'Group' },
-]
+import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 
 function RoleModal({ role, onClose }) {
   const [formData, setFormData] = useState({
     name: '',
     is_active: true,
     users: [],
-    permissions: {},
   })
+  const [permissions, setPermissions] = useState([])
+  const [availablePermissions, setAvailablePermissions] = useState({})
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     fetchUsers()
+    fetchAvailablePermissions()
     if (role) {
       setFormData({
         name: role.name || '',
         is_active: role.is_active ?? true,
         users: role.users || [],
-        permissions: role.permissions || {},
       })
-    } else {
-      // Initialize permissions for all modules
-      const initialPermissions = {}
-      MODULES.forEach((module) => {
-        initialPermissions[module] = {
-          ownership: 'self',
-          level: 'read',
-          special: [],
-        }
-      })
-      setFormData((prev) => ({ ...prev, permissions: initialPermissions }))
+      // Load existing permissions
+      if (role.permissions && Array.isArray(role.permissions)) {
+        setPermissions(role.permissions.map(p => ({
+          id: p.id,
+          module_name: p.module_name,
+          ownership_type: p.ownership_type,
+          level: p.level,
+          is_active: p.is_active ?? true,
+        })))
+      }
     }
   }, [role])
 
@@ -58,17 +45,70 @@ function RoleModal({ role, onClose }) {
     }
   }
 
+  const fetchAvailablePermissions = async () => {
+    try {
+      const response = await api.get('/permissions/available/')
+      setAvailablePermissions(response.data)
+    } catch (error) {
+      console.error('Error fetching available permissions:', error)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
+      const roleData = { ...formData }
+      
       if (role) {
-        await api.patch(`/auth/roles/${role.id}/`, formData)
+        // Update role
+        await api.patch(`/roles/${role.id}/`, roleData)
+        
+        // Update permissions
+        const existingPermIds = permissions.filter(p => p.id).map(p => p.id)
+        const currentPerms = role.permissions || []
+        const currentPermIds = currentPerms.map(p => p.id)
+        
+        // Delete removed permissions
+        const toDelete = currentPermIds.filter(id => !existingPermIds.includes(id))
+        for (const id of toDelete) {
+          await api.delete(`/roles/permissions/${id}/`)
+        }
+        
+        // Create/update permissions
+        for (const perm of permissions) {
+          const permData = {
+            module_name: perm.module_name,
+            ownership_type: perm.ownership_type,
+            level: perm.level,
+            is_active: perm.is_active,
+          }
+          
+          if (perm.id) {
+            await api.patch(`/roles/permissions/${perm.id}/`, permData)
+          } else {
+            await api.post('/roles/permissions/', { role: role.id, ...permData })
+          }
+        }
       } else {
-        await api.post('/auth/roles/', formData)
+        // Create role
+        const response = await api.post('/roles/', roleData)
+        const newRole = response.data
+        
+        // Create permissions
+        for (const perm of permissions) {
+          await api.post('/roles/permissions/', {
+            role: newRole.id,
+            module_name: perm.module_name,
+            ownership_type: perm.ownership_type,
+            level: perm.level,
+            is_active: perm.is_active,
+          })
+        }
       }
+      
       onClose()
     } catch (error) {
       setError(error.response?.data?.error || 'An error occurred')
@@ -85,19 +125,6 @@ function RoleModal({ role, onClose }) {
     }))
   }
 
-  const handlePermissionChange = (module, field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      permissions: {
-        ...prev.permissions,
-        [module]: {
-          ...prev.permissions[module],
-          [field]: value,
-        },
-      },
-    }))
-  }
-
   const handleMultiSelect = (value) => {
     setFormData((prev) => ({
       ...prev,
@@ -105,6 +132,32 @@ function RoleModal({ role, onClose }) {
         ? prev.users.filter((id) => id !== value)
         : [...prev.users, value],
     }))
+  }
+
+  const addPermission = () => {
+    const modules = Object.keys(availablePermissions)
+    if (modules.length === 0) return
+    
+    const firstModule = modules[0]
+    const modulePerms = availablePermissions[firstModule]
+    
+    setPermissions([...permissions, {
+      id: null,
+      module_name: firstModule,
+      ownership_type: modulePerms.types[0] || 'self',
+      level: modulePerms.levels[0] || 'read',
+      is_active: true,
+    }])
+  }
+
+  const removePermission = (index) => {
+    setPermissions(permissions.filter((_, i) => i !== index))
+  }
+
+  const updatePermission = (index, field, value) => {
+    const updated = [...permissions]
+    updated[index] = { ...updated[index], [field]: value }
+    setPermissions(updated)
   }
 
   return (
@@ -155,53 +208,69 @@ function RoleModal({ role, onClose }) {
 
           {/* Permissions */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Permissions
-            </label>
-            <div className="space-y-4 border border-gray-300 rounded-md p-4">
-              {MODULES.map((module) => (
-                <div key={module} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
-                  <h4 className="font-medium text-gray-900 mb-3 capitalize">{module}</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Ownership
-                      </label>
-                      <select
-                        value={formData.permissions[module]?.ownership || 'self'}
-                        onChange={(e) =>
-                          handlePermissionChange(module, 'ownership', e.target.value)
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Permissions
+              </label>
+              <button
+                type="button"
+                onClick={addPermission}
+                className="flex items-center px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                <PlusIcon className="h-4 w-4 mr-1" />
+                Add Permission
+              </button>
+            </div>
+            <div className="space-y-2 border border-gray-300 rounded-md p-4">
+              {permissions.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No permissions added. Click "Add Permission" to add one.
+                </p>
+              ) : (
+                permissions.map((perm, index) => {
+                  const modulePerms = availablePermissions[perm.module_name] || { types: [], levels: [] }
+                  return (
+                    <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded border">
+                      <div className="flex-1 grid grid-cols-3 gap-2">
+                        <select
+                          value={perm.module_name}
+                          onChange={(e) => updatePermission(index, 'module_name', e.target.value)}
+                          className="px-2 py-1 border border-gray-300 rounded text-sm"
+                        >
+                          {Object.keys(availablePermissions).map(module => (
+                            <option key={module} value={module}>{module}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={perm.ownership_type}
+                          onChange={(e) => updatePermission(index, 'ownership_type', e.target.value)}
+                          className="px-2 py-1 border border-gray-300 rounded text-sm"
+                        >
+                          {modulePerms.types.map(type => (
+                            <option key={type} value={type}>{type}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={perm.level}
+                          onChange={(e) => updatePermission(index, 'level', e.target.value)}
+                          className="px-2 py-1 border border-gray-300 rounded text-sm"
+                        >
+                          {modulePerms.levels.map(level => (
+                            <option key={level} value={level}>{level}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removePermission(index)}
+                        className="text-red-600 hover:text-red-800"
                       >
-                        {OWNERSHIP_TYPES.map((type) => (
-                          <option key={type.value} value={type.value}>
-                            {type.label}
-                          </option>
-                        ))}
-                      </select>
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Level
-                      </label>
-                      <select
-                        value={formData.permissions[module]?.level || 'read'}
-                        onChange={(e) =>
-                          handlePermissionChange(module, 'level', e.target.value)
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      >
-                        {LEVELS.map((level) => (
-                          <option key={level.value} value={level.value}>
-                            {level.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  )
+                })
+              )}
             </div>
           </div>
 

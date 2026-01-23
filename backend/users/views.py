@@ -3,11 +3,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import User, Group, Role
+from permissions.checker import get_permission_checker
+from .models import User
 from .serializers import (
-    UserSerializer, GroupSerializer, RoleSerializer, UserRegistrationSerializer
+    UserSerializer, UserRegistrationSerializer
 )
 
 
@@ -20,9 +20,14 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # Filter based on permissions
         user = self.request.user
+        checker = get_permission_checker(user)
+        
         if user.is_superuser:
             return User.objects.all()
-        return User.objects.filter(id=user.id)
+        
+        # Use permission checker to filter queryset
+        queryset = User.objects.all()
+        return checker.filter_queryset(queryset, 'users', 'read')
     
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -98,55 +103,3 @@ class UserViewSet(viewsets.ModelViewSet):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         })
-
-
-class GroupViewSet(viewsets.ModelViewSet):
-    """ViewSet for Group model."""
-    queryset = Group.objects.all()
-    serializer_class = GroupSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return Group.objects.all()
-        # Return groups the user belongs to
-        return user.crm_groups.all()
-    
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        
-        instance.last_edit = timezone.now()
-        instance.last_edited_by = request.user
-        instance.save()
-        
-        self.perform_update(serializer)
-        return Response(serializer.data)
-
-
-class RoleViewSet(viewsets.ModelViewSet):
-    """ViewSet for Role model."""
-    queryset = Role.objects.all()
-    serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return Role.objects.all()
-        # Return roles assigned to the user
-        return user.roles.all()
-    
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        
-        instance.last_edit = timezone.now()
-        instance.last_edited_by = request.user
-        instance.save()
-        
-        self.perform_update(serializer)
-        return Response(serializer.data)

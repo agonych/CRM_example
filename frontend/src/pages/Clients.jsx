@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import { usePermissions } from '../hooks/usePermissions'
 import {
   PlusIcon,
   PencilIcon,
@@ -9,6 +10,7 @@ import {
 import ClientModal from '../components/ClientModal'
 
 function Clients() {
+  const { hasPermission } = usePermissions()
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -16,6 +18,15 @@ function Clients() {
   const [selectedClient, setSelectedClient] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  
+  // Check read permission
+  if (!hasPermission('clients', 'read')) {
+    return (
+      <div className="text-center py-12 text-gray-500">
+        You do not have permission to access this page.
+      </div>
+    )
+  }
 
   useEffect(() => {
     fetchClients()
@@ -83,13 +94,15 @@ function Clients() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
-        <button
-          onClick={handleCreate}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add Client
-        </button>
+        {hasPermission('clients', 'create') && (
+          <button
+            onClick={handleCreate}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Add Client
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -160,18 +173,22 @@ function Clients() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(client)}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        <PencilIcon className="h-5 w-5 inline" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(client.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <TrashIcon className="h-5 w-5 inline" />
-                      </button>
+                      {hasPermission('clients', 'edit') && (
+                        <button
+                          onClick={() => handleEdit(client)}
+                          className="text-blue-600 hover:text-blue-900 mr-4"
+                        >
+                          <PencilIcon className="h-5 w-5 inline" />
+                        </button>
+                      )}
+                      {hasPermission('clients', 'manage') && (
+                        <button
+                          onClick={() => handleDelete(client.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <TrashIcon className="h-5 w-5 inline" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

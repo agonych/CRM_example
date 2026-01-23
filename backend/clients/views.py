@@ -1,11 +1,10 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from .models import Client
 from .serializers import ClientSerializer
-from users.models import User, Group, Role
+from permissions.checker import get_permission_checker
 
 
 class ClientViewSet(viewsets.ModelViewSet):
@@ -17,34 +16,11 @@ class ClientViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filter clients based on user permissions."""
         user = self.request.user
+        checker = get_permission_checker(user)
         
-        # Superusers can see all clients
-        if user.is_superuser:
-            return Client.objects.all()
-        
-        # Get user's roles and check permissions
-        user_roles = user.roles.all()
-        queryset = Client.objects.none()
-        
-        for role in user_roles:
-            perm = role.get_module_permission('clients')
-            if not perm:
-                continue
-            
-            ownership = perm.get('ownership', 'self')
-            level = perm.get('level', 'read')
-            
-            if ownership == 'self':
-                # Only clients assigned to this user
-                queryset = queryset | Client.objects.filter(assigned_users=user)
-            elif ownership == 'group':
-                # Clients assigned to user's groups
-                user_groups = user.crm_groups.all()
-                queryset = queryset | Client.objects.filter(groups__in=user_groups)
-                # Also include directly assigned clients
-                queryset = queryset | Client.objects.filter(assigned_users=user)
-        
-        return queryset.distinct()
+        # Use permission checker to filter queryset
+        queryset = Client.objects.all()
+        return checker.filter_queryset(queryset, 'clients', 'read')
     
     def get_serializer_context(self):
         """Add request to serializer context."""
@@ -116,29 +92,5 @@ class ClientViewSet(viewsets.ModelViewSet):
     
     def _has_permission(self, user, required_level, obj=None):
         """Check if user has required permission level."""
-        if user.is_superuser:
-            return True
-        
-        user_roles = user.roles.all()
-        for role in user_roles:
-            perm = role.get_module_permission('clients')
-            if not perm:
-                continue
-            
-            ownership = perm.get('ownership', 'self')
-            level = perm.get('level', 'read')
-            
-            # Determine ownership type for this object
-            ownership_type = 'self'
-            if obj:
-                if obj.assigned_users.filter(id=user.id).exists():
-                    ownership_type = 'self'
-                elif obj.groups.filter(id__in=user.crm_groups.values_list('id', flat=True)).exists():
-                    ownership_type = 'group'
-                else:
-                    ownership_type = 'self'  # Default
-            
-            if role.has_permission('clients', required_level, ownership_type, user, obj):
-                return True
-        
-        return False
+        checker = get_permission_checker(user)
+        return checker.has_permission('clients', required_level, obj)

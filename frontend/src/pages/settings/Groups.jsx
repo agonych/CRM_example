@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { usePermissions } from '../../hooks/usePermissions'
 import {
   PlusIcon,
   PencilIcon,
@@ -10,6 +11,16 @@ import GroupModal from '../../components/GroupModal'
 
 function Groups() {
   const { isAdmin } = useAuth()
+  const { hasPermission } = usePermissions()
+  
+  // Check read permission
+  if (!isAdmin && !hasPermission('groups', 'read')) {
+    return (
+      <div className="text-center py-12 text-gray-500">
+        You do not have permission to access this page.
+      </div>
+    )
+  }
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -22,7 +33,7 @@ function Groups() {
   const fetchGroups = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/auth/groups/')
+      const response = await api.get('/groups/')
       setGroups(response.data.results || response.data)
     } catch (error) {
       console.error('Error fetching groups:', error)
@@ -47,7 +58,7 @@ function Groups() {
     }
 
     try {
-      await api.delete(`/auth/groups/${id}/`)
+      await api.delete(`/groups/${id}/`)
       fetchGroups()
     } catch (error) {
       alert('Error deleting group: ' + (error.response?.data?.error || error.message))

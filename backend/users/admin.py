@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Group, Role
+from .models import User
 
 
 @admin.register(User)
@@ -23,19 +23,3 @@ class UserAdmin(BaseUserAdmin):
             'fields': ('email', 'first_name', 'last_name', 'password1', 'password2', 'is_active', 'is_user', 'is_superuser'),
         }),
     )
-
-
-@admin.register(Group)
-class GroupAdmin(admin.ModelAdmin):
-    list_display = ('name', 'is_active', 'created_at', 'last_edited_by')
-    list_filter = ('is_active', 'created_at')
-    search_fields = ('name',)
-    filter_horizontal = ('users',)
-
-
-@admin.register(Role)
-class RoleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'is_active', 'created_at', 'last_edited_by')
-    list_filter = ('is_active', 'created_at')
-    search_fields = ('name',)
-    filter_horizontal = ('users',)

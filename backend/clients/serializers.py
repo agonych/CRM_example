@@ -1,7 +1,9 @@
 from rest_framework import serializers
 from .models import Client
-from users.models import Group, User
-from users.serializers import GroupSerializer, UserSerializer
+from groups.models import Group
+from users.models import User
+from groups.serializers import GroupSerializer
+from users.serializers import UserSerializer
 
 
 class ClientSerializer(serializers.ModelSerializer):

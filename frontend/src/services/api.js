@@ -1,7 +1,10 @@
 import axios from 'axios'
 
+// Use environment variable or default to proxy path
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -33,7 +36,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refresh_token')
         if (refreshToken) {
-          const response = await axios.post('/api/auth/token/refresh/', {
+          const response = await axios.post(`${API_BASE_URL}/auth/token/refresh/`, {
             refresh: refreshToken,
           })
           const { access } = response.data

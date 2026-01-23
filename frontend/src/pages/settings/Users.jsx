@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { usePermissions } from '../../hooks/usePermissions'
 import {
   PlusIcon,
   PencilIcon,
@@ -10,24 +11,41 @@ import UserModal from '../../components/UserModal'
 
 function Users() {
   const { isAdmin } = useAuth()
+  const { loading: permissionsLoading, permissions } = usePermissions()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchUsers()
+    // Wait for permissions to load, then check and fetch
+    if (permissionsLoading) {
+      return
     }
-  }, [isAdmin])
+    
+    const canRead = isAdmin || (permissions.users && permissions.users.read)
+    
+    if (canRead) {
+      fetchUsers()
+    } else {
+      setLoading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, permissionsLoading, permissions?.users?.read])
 
   const fetchUsers = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await api.get('/auth/users/')
       setUsers(response.data.results || response.data)
     } catch (error) {
       console.error('Error fetching users:', error)
+      console.error('Error details:', error.response?.data || error.message)
+      setError(error.response?.data?.error || error.message || 'Failed to load users')
+      // Set empty array on error so UI shows error message
+      setUsers([])
     } finally {
       setLoading(false)
     }
@@ -62,7 +80,17 @@ function Users() {
     fetchUsers()
   }
 
-  if (!isAdmin) {
+  // Show loading while permissions are loading
+  if (permissionsLoading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+      </div>
+    )
+  }
+  
+  const canRead = isAdmin || (permissions.users && permissions.users.read)
+  if (!canRead) {
     return (
       <div className="text-center py-12 text-gray-500">
         You do not have permission to access this page.
@@ -86,6 +114,19 @@ function Users() {
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      ) : error ? (
+        <div className="text-center py-12">
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 max-w-md mx-auto">
+            <p className="text-red-800 font-medium">Error loading users</p>
+            <p className="text-red-600 text-sm mt-1">{error}</p>
+            <button
+              onClick={fetchUsers}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       ) : users.length === 0 ? (
         <div className="text-center py-12 text-gray-500">No users found</div>

@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
-from users.models import User, Group
+from users.models import User
+from groups.models import Group
 
 
 class Client(models.Model):

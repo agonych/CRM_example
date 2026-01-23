@@ -35,7 +35,7 @@ function ClientModal({ client, onClose }) {
 
   const fetchGroups = async () => {
     try {
-      const response = await api.get('/auth/groups/')
+      const response = await api.get('/groups/')
       setGroups(response.data.results || response.data)
     } catch (error) {
       console.error('Error fetching groups:', error)

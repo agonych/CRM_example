@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { usePermissions } from '../hooks/usePermissions'
 import {
-  HomeIcon,
   UserGroupIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
@@ -9,6 +9,7 @@ import {
 
 function Layout() {
   const { user, logout, isAdmin } = useAuth()
+  const { hasPermission } = usePermissions()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -18,15 +19,15 @@ function Layout() {
   }
 
   const navigation = [
-    { name: 'Clients', href: '/clients', icon: UserGroupIcon },
-    { name: 'Settings', href: '/settings/users', icon: Cog6ToothIcon },
-  ]
+    { name: 'Clients', href: '/clients', icon: UserGroupIcon, module: 'clients' },
+    { name: 'Settings', href: '/settings/users', icon: Cog6ToothIcon, module: null },
+  ].filter(item => !item.module || hasPermission(item.module, 'read'))
 
   const settingsNav = [
-    { name: 'Users', href: '/settings/users' },
-    { name: 'Groups', href: '/settings/groups' },
-    { name: 'Roles', href: '/settings/roles' },
-  ]
+    { name: 'Users', href: '/settings/users', module: 'users' },
+    { name: 'Groups', href: '/settings/groups', module: 'groups' },
+    { name: 'Roles', href: '/settings/roles', module: 'roles' },
+  ].filter(item => hasPermission(item.module, 'read'))
 
   const isSettingsPage = location.pathname.startsWith('/settings')
 

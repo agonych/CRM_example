@@ -39,9 +39,9 @@ function GroupModal({ group, onClose }) {
 
     try {
       if (group) {
-        await api.patch(`/auth/groups/${group.id}/`, formData)
+        await api.patch(`/groups/${group.id}/`, formData)
       } else {
-        await api.post('/auth/groups/', formData)
+        await api.post('/groups/', formData)
       }
       onClose()
     } catch (error) {

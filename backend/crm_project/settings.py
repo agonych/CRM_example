@@ -34,7 +34,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'permissions',  # Must be before modules that use it
     'users',
+    'groups',
+    'roles',
     'clients',
 ]
 
