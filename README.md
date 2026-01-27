@@ -63,7 +63,6 @@ PERMISSION_LEVELS = ['read', 'create', 'edit', 'manage', 'admin']  # Permission 
 
 ### Prerequisites
 - Python 3.8+
-- MySQL 5.7+ or 8.0+
 - pip
 
 ### Installation
@@ -92,28 +91,15 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-5. Create a `.env` file in the `backend` directory (copy from `.env.example`):
+5. (Optional) Create a `.env` file in the `backend` directory for custom settings:
 ```env
 SECRET_KEY=your-secret-key-here
 DEBUG=True
-DB_NAME=crm_example
-DB_USER=root
-DB_PASSWORD=your-password
-DB_HOST=localhost
-DB_PORT=3306
 ```
 
-6. Create the MySQL database:
-```sql
-CREATE DATABASE crm_example CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
+**Note**: The project uses SQLite by default, so no database setup is required!
 
-Or use the reset script:
-```bash
-python reset_database.py
-```
-
-7. Run migrations:
+6. Run migrations:
 ```bash
 python manage.py makemigrations
 python manage.py migrate
@@ -283,15 +269,37 @@ This command:
 - Creates admin-level permissions for all objects in each module
 - Can be run multiple times to update permissions when new modules are added
 
+### Seed Database
+
+Seed the database with sample data (groups and clients):
+
+```bash
+python manage.py seed_data
+```
+
+This command:
+- Creates 3 groups by default
+- Creates 100 clients (leads) by default
+- Randomly assigns clients to groups
+- Randomly assigns clients to users (if any exist)
+
+You can customize the number of groups and clients:
+
+```bash
+python manage.py seed_data --groups 5 --clients 200
+```
+
 ### Reset Database
 
-Drop and recreate the database (useful for development):
+Delete the SQLite database and recreate it (useful for development):
 
 ```bash
 python reset_database.py
 python manage.py migrate
 python manage.py create_admin_role
 ```
+
+Or manually delete `backend/db.sqlite3` and run migrations.
 
 ## Adding a New Module
 
