@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
@@ -35,3 +35,10 @@ class GroupViewSet(viewsets.ModelViewSet):
         
         self.perform_update(serializer)
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.clients.clear()
+        instance.users.clear()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)

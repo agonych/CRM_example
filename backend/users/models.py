@@ -17,7 +17,6 @@ class UserManager(BaseUserManager):
     
     def create_superuser(self, email, password=None, **extra_fields):
         """Create and save a superuser."""
-        extra_fields.setdefault('is_user', True)
         extra_fields.setdefault('is_active', True)
         extra_fields.setdefault('is_superuser', True)
         
@@ -33,7 +32,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=150)
     email = models.EmailField(unique=True)
     is_active = models.BooleanField(default=True)
-    is_user = models.BooleanField(default=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

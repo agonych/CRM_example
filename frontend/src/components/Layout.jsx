@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import {
   UserGroupIcon,
+  ClipboardDocumentListIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline'
@@ -20,6 +21,7 @@ function Layout() {
 
   const navigation = [
     { name: 'Clients', href: '/clients', icon: UserGroupIcon, module: 'clients' },
+    { name: 'Tasks', href: '/tasks', icon: ClipboardDocumentListIcon, module: 'tasks' },
     { name: 'Settings', href: '/settings/users', icon: Cog6ToothIcon, module: null },
   ].filter(item => !item.module || hasPermission(item.module, 'read'))
 
@@ -27,7 +29,9 @@ function Layout() {
     { name: 'Users', href: '/settings/users', module: 'users' },
     { name: 'Groups', href: '/settings/groups', module: 'groups' },
     { name: 'Roles', href: '/settings/roles', module: 'roles' },
-  ].filter(item => hasPermission(item.module, 'read'))
+    { name: 'Task Types', href: '/settings/task-types', module: 'tasks', level: 'manage' },
+    { name: 'Client Statuses', href: '/settings/client-statuses', module: 'clients', level: 'manage' },
+  ].filter(item => hasPermission(item.module, item.level || 'read'))
 
   const isSettingsPage = location.pathname.startsWith('/settings')
 
@@ -44,8 +48,9 @@ function Layout() {
           {/* Navigation */}
           <nav className="flex-1 px-2 py-4 space-y-1">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href || 
-                (item.href === '/settings/users' && isSettingsPage)
+              const isActive = location.pathname === item.href ||
+                (item.href === '/settings/users' && isSettingsPage) ||
+                (item.href === '/tasks' && location.pathname === '/tasks')
               return (
                 <Link
                   key={item.name}

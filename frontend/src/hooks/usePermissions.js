@@ -15,6 +15,7 @@ export function usePermissions() {
         users: { read: true, create: true, edit: true, manage: true, admin: true },
         groups: { read: true, create: true, edit: true, manage: true, admin: true },
         roles: { read: true, create: true, edit: true, manage: true, admin: true },
+        tasks: { read: true, create: true, edit: true, manage: true, admin: true },
       })
       setLoading(false)
       return

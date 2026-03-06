@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
+  CheckCircleIcon,
+  XCircleIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
-import ClientModal from '../components/ClientModal'
+import TaskModal from '../components/TaskModal'
 
-function BatchModal({ action, statuses, groups, users, onSubmit, onClose }) {
-  const [value, setValue] = useState(action === 'assign_users' ? [] : '')
+function TaskBatchModal({ taskTypes, onSubmit, onClose }) {
+  const [value, setValue] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async () => {
@@ -20,74 +23,28 @@ function BatchModal({ action, statuses, groups, users, onSubmit, onClose }) {
     setLoading(false)
   }
 
-  const toggleUser = (userId) => {
-    setValue((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    )
-  }
-
-  const titles = {
-    change_status: 'Change Status',
-    add_to_group: 'Add to Group',
-    remove_from_group: 'Remove from Group',
-    assign_users: 'Assign Users',
-  }
+  const options = taskTypes.filter((t) => t.is_active)
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
       <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold">{titles[action]}</h3>
+          <h3 className="text-lg font-bold">Set Task Type</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
-        {action === 'change_status' && (
-          <select
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Prospect (No Status)</option>
-            {statuses.filter((s) => s.is_active).map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        )}
-
-        {(action === 'add_to_group' || action === 'remove_from_group') && (
-          <select
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Select a group...</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-        )}
-
-        {action === 'assign_users' && (
-          <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2">
-            {users.map((user) => (
-              <label key={user.id} className="flex items-center py-1">
-                <input
-                  type="checkbox"
-                  checked={value.includes(user.id)}
-                  onChange={() => toggleUser(user.id)}
-                  className="mr-2"
-                />
-                <span className="text-sm">
-                  {user.first_name} {user.last_name}
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
+        <select
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">Select...</option>
+          {options.map((item) => (
+            <option key={item.id} value={item.id}>{item.name}</option>
+          ))}
+        </select>
 
         <div className="flex justify-end space-x-3 mt-4">
           <button
@@ -99,7 +56,7 @@ function BatchModal({ action, statuses, groups, users, onSubmit, onClose }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || ((action === 'add_to_group' || action === 'remove_from_group') && !value)}
+            disabled={loading || !value}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
           >
             {loading ? 'Applying...' : 'Apply'}
@@ -110,26 +67,27 @@ function BatchModal({ action, statuses, groups, users, onSubmit, onClose }) {
   )
 }
 
-function Clients() {
+function Tasks() {
+  const { user } = useAuth()
   const { hasPermission } = usePermissions()
-  const [clients, setClients] = useState([])
+  const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedClient, setSelectedClient] = useState(null)
+  const [selectedTask, setSelectedTask] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [activeTab, setActiveTab] = useState('active')
+  const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterGroup, setFilterGroup] = useState('')
-  const [filterUser, setFilterUser] = useState('')
-  const [statuses, setStatuses] = useState([])
+  const [taskTypes, setTaskTypes] = useState([])
   const [groups, setGroups] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [batchAction, setBatchAction] = useState(null)
-  const [allUsers, setAllUsers] = useState([])
 
   // Check read permission
-  if (!hasPermission('clients', 'read')) {
+  if (!hasPermission('tasks', 'read')) {
     return (
       <div className="text-center py-12 text-gray-500">
         You do not have permission to access this page.
@@ -138,26 +96,25 @@ function Clients() {
   }
 
   useEffect(() => {
-    fetchStatuses()
+    fetchTaskTypes()
     fetchGroups()
-    fetchAllUsers()
   }, [])
 
   useEffect(() => {
-    fetchClients()
-  }, [currentPage, filterStatus, filterGroup, filterUser])
+    fetchTasks()
+  }, [currentPage, activeTab, filterType, filterStatus, filterGroup])
 
   // Clear selection when page/filters change
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [currentPage, filterStatus, filterGroup, filterUser])
+  }, [currentPage, activeTab, filterType, filterStatus, filterGroup])
 
-  const fetchStatuses = async () => {
+  const fetchTaskTypes = async () => {
     try {
-      const response = await api.get('/clients/statuses/')
-      setStatuses(response.data.results || response.data)
+      const response = await api.get('/tasks/types/')
+      setTaskTypes(response.data.results || response.data)
     } catch (error) {
-      console.error('Error fetching statuses:', error)
+      console.error('Error fetching task types:', error)
     }
   }
 
@@ -170,61 +127,80 @@ function Clients() {
     }
   }
 
-  const fetchAllUsers = async () => {
-    try {
-      const response = await api.get('/auth/users/')
-      setAllUsers(response.data.results || response.data)
-    } catch (error) {
-      console.error('Error fetching users:', error)
-    }
-  }
-
-  const fetchClients = async () => {
+  const fetchTasks = async () => {
     try {
       setLoading(true)
       const params = { page: currentPage }
-      if (filterStatus) params.status = filterStatus
+      if (activeTab === 'active') {
+        params.status = 'active'
+      } else if (filterStatus) {
+        params.status = filterStatus
+      } else {
+        params.status = 'completed,cancelled'
+      }
+      if (filterType) params.task_type = filterType
       if (filterGroup) params.group = filterGroup
-      if (filterUser) params.assigned_user = filterUser
-      const response = await api.get('/clients/', { params })
-      setClients(response.data.results || response.data)
+      const response = await api.get('/tasks/', { params })
+      setTasks(response.data.results || response.data)
       if (response.data.count !== undefined) {
         setTotalPages(Math.ceil(response.data.count / 20))
       }
     } catch (error) {
-      console.error('Error fetching clients:', error)
+      console.error('Error fetching tasks:', error)
     } finally {
       setLoading(false)
     }
   }
 
   const handleCreate = () => {
-    setSelectedClient(null)
+    setSelectedTask(null)
     setIsModalOpen(true)
   }
 
-  const handleEdit = (client) => {
-    setSelectedClient(client)
+  const handleEdit = (task) => {
+    setSelectedTask(task)
     setIsModalOpen(true)
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this client?')) {
-      return
-    }
+    if (!window.confirm('Are you sure you want to delete this task?')) return
 
     try {
-      await api.delete(`/clients/${id}/`)
-      fetchClients()
+      await api.delete(`/tasks/${id}/`)
+      fetchTasks()
     } catch (error) {
-      alert('Error deleting client: ' + (error.response?.data?.error || error.message))
+      alert('Error deleting task: ' + (error.response?.data?.error || error.message))
+    }
+  }
+
+  const handleComplete = async (task) => {
+    try {
+      await api.patch(`/tasks/${task.id}/`, { status: 'completed' })
+      fetchTasks()
+    } catch (error) {
+      alert('Error completing task: ' + (error.response?.data?.error || error.message))
+    }
+  }
+
+  const handleCancel = async (task) => {
+    try {
+      await api.patch(`/tasks/${task.id}/`, { status: 'cancelled' })
+      fetchTasks()
+    } catch (error) {
+      alert('Error cancelling task: ' + (error.response?.data?.error || error.message))
     }
   }
 
   const handleModalClose = () => {
     setIsModalOpen(false)
-    setSelectedClient(null)
-    fetchClients()
+    setSelectedTask(null)
+    fetchTasks()
+  }
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab)
+    setCurrentPage(1)
+    setFilterStatus('')
   }
 
   const handleFilterChange = (setter) => (e) => {
@@ -245,53 +221,103 @@ function Clients() {
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredClients.length) {
+    if (selectedIds.size === filteredTasks.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filteredClients.map((c) => c.id)))
+      setSelectedIds(new Set(filteredTasks.map((t) => t.id)))
     }
   }
 
-  const handleBatchSubmit = async (value) => {
+  const handleBatchAction = async (actionName, value) => {
     try {
-      const payload = {
-        client_ids: Array.from(selectedIds),
-        action: batchAction,
-        value: batchAction === 'change_status' ? (value || null) : value,
-      }
-      await api.post('/clients/batch/', payload)
-      setBatchAction(null)
+      await api.post('/tasks/batch/', {
+        task_ids: Array.from(selectedIds),
+        action: actionName,
+        value: value || null,
+      })
       setSelectedIds(new Set())
-      fetchClients()
+      fetchTasks()
     } catch (error) {
       alert('Batch action failed: ' + (error.response?.data?.error || error.message))
     }
   }
 
-  const filteredClients = clients.filter((client) => {
+  const handleBatchModalSubmit = async (value) => {
+    await handleBatchAction(batchAction, value)
+    setBatchAction(null)
+  }
+
+  const filteredTasks = tasks.filter((task) => {
     if (!searchTerm) return true
     const searchLower = searchTerm.toLowerCase()
     return (
-      client.first_name?.toLowerCase().includes(searchLower) ||
-      client.last_name?.toLowerCase().includes(searchLower) ||
-      client.email?.toLowerCase().includes(searchLower) ||
-      client.phone?.toLowerCase().includes(searchLower)
+      task.name?.toLowerCase().includes(searchLower) ||
+      task.description?.toLowerCase().includes(searchLower) ||
+      task.client_detail?.first_name?.toLowerCase().includes(searchLower) ||
+      task.client_detail?.last_name?.toLowerCase().includes(searchLower) ||
+      task.task_type_detail?.name?.toLowerCase().includes(searchLower)
     )
   })
+
+  const getStatusBadge = (status) => {
+    const styles = {
+      active: 'bg-blue-100 text-blue-800',
+      completed: 'bg-green-100 text-green-800',
+      cancelled: 'bg-gray-100 text-gray-800',
+    }
+    return (
+      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${styles[status] || styles.active}`}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    )
+  }
+
+  const formatDuration = (minutes) => {
+    if (minutes < 60) return `${minutes}m`
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    return m > 0 ? `${h}h ${m}m` : `${h}h`
+  }
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
-        {hasPermission('clients', 'create') && (
+        <h1 className="text-3xl font-bold text-gray-900">Tasks</h1>
+        {hasPermission('tasks', 'create') && (
           <button
             onClick={handleCreate}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             <PlusIcon className="h-5 w-5 mr-2" />
-            Add Client
+            Add Task
           </button>
         )}
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-6 border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => handleTabChange('active')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'active'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Active Tasks
+          </button>
+          <button
+            onClick={() => handleTabChange('history')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'history'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Task History
+          </button>
+        </nav>
       </div>
 
       {/* Search and Filters */}
@@ -303,7 +329,7 @@ function Clients() {
             </div>
             <input
               type="text"
-              placeholder="Search clients..."
+              placeholder="Search tasks..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -312,14 +338,13 @@ function Clients() {
         </div>
         <div className="w-48">
           <select
-            value={filterStatus}
-            onChange={handleFilterChange(setFilterStatus)}
+            value={filterType}
+            onChange={handleFilterChange(setFilterType)}
             className="block w-full py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
           >
-            <option value="">All Statuses</option>
-            <option value="null">Prospect (No Status)</option>
-            {statuses.filter((s) => s.is_active).map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
+            <option value="">All Types</option>
+            {taskTypes.filter((t) => t.is_active).map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
         </div>
@@ -335,18 +360,19 @@ function Clients() {
             ))}
           </select>
         </div>
-        <div className="w-48">
-          <select
-            value={filterUser}
-            onChange={handleFilterChange(setFilterUser)}
-            className="block w-full py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-          >
-            <option value="">All Users</option>
-            {allUsers.map((u) => (
-              <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-            ))}
-          </select>
-        </div>
+        {activeTab === 'history' && (
+          <div className="w-48">
+            <select
+              value={filterStatus}
+              onChange={handleFilterChange(setFilterStatus)}
+              className="block w-full py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            >
+              <option value="">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Batch Action Bar */}
@@ -355,29 +381,27 @@ function Clients() {
           <span className="text-sm font-medium text-blue-800 mr-2">
             {selectedIds.size} selected
           </span>
+          {activeTab === 'active' && (
+            <>
+              <button
+                onClick={() => handleBatchAction('complete')}
+                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                Complete
+              </button>
+              <button
+                onClick={() => handleBatchAction('cancel')}
+                className="px-3 py-1.5 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700"
+              >
+                Cancel
+              </button>
+            </>
+          )}
           <button
-            onClick={() => setBatchAction('change_status')}
+            onClick={() => setBatchAction('set_type')}
             className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            Change Status
-          </button>
-          <button
-            onClick={() => setBatchAction('add_to_group')}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Add to Group
-          </button>
-          <button
-            onClick={() => setBatchAction('remove_from_group')}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Remove from Group
-          </button>
-          <button
-            onClick={() => setBatchAction('assign_users')}
-            className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Assign Users
+            Set Type
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
@@ -388,14 +412,14 @@ function Clients() {
         </div>
       )}
 
-      {/* Clients Table */}
+      {/* Tasks Table */}
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
         </div>
-      ) : filteredClients.length === 0 ? (
+      ) : filteredTasks.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
-          No clients found
+          No tasks found
         </div>
       ) : (
         <>
@@ -406,89 +430,132 @@ function Clients() {
                   <th className="px-4 py-3 w-10">
                     <input
                       type="checkbox"
-                      checked={selectedIds.size === filteredClients.length && filteredClients.length > 0}
+                      checked={selectedIds.size === filteredTasks.length && filteredTasks.length > 0}
                       onChange={toggleSelectAll}
                       className="rounded border-gray-300"
                     />
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
+                    Task
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
+                    Client
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Phone
+                    Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    Assigned To
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Groups
+                    Due Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
+                    Duration
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Value
+                  </th>
+                  {activeTab === 'history' && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                  )}
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredClients.map((client) => (
-                  <tr key={client.id} className={`hover:bg-gray-50 ${selectedIds.has(client.id) ? 'bg-blue-50' : ''}`}>
+                {filteredTasks.map((task) => (
+                  <tr key={task.id} className={`hover:bg-gray-50 ${selectedIds.has(task.id) ? 'bg-blue-50' : ''}`}>
                     <td className="px-4 py-4 w-10">
                       <input
                         type="checkbox"
-                        checked={selectedIds.has(client.id)}
-                        onChange={() => toggleSelect(client.id)}
+                        checked={selectedIds.has(task.id)}
+                        onChange={() => toggleSelect(task.id)}
                         className="rounded border-gray-300"
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {client.first_name} {client.last_name}
-                      </div>
+                      <div className="text-sm font-medium text-gray-900">{task.name}</div>
+                      {task.description && (
+                        <div className="text-xs text-gray-500 truncate max-w-xs">
+                          {task.description}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{client.email || '-'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{client.phone || '-'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        client.status_detail
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {client.status_detail?.name || 'Prospect'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-500">
-                        {client.group_names?.length > 0
-                          ? client.group_names.join(', ')
+                      <div className="text-sm text-gray-900">
+                        {task.client_detail
+                          ? `${task.client_detail.first_name} ${task.client_detail.last_name}`
                           : '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
-                        {new Date(client.created_at).toLocaleDateString()}
+                        {task.task_type_detail?.name || '-'}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {task.assigned_to_detail
+                          ? `${task.assigned_to_detail.first_name} ${task.assigned_to_detail.last_name}`
+                          : 'Unassigned'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {new Date(task.due_date).toLocaleString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {formatDuration(task.duration)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {task.monetary_value > 0
+                          ? `$${task.monetary_value.toFixed(2)}`
+                          : '-'}
+                      </div>
+                    </td>
+                    {activeTab === 'history' && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(task.status)}
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {hasPermission('clients', 'edit') && (
+                      {task.status === 'active' && hasPermission('tasks', 'edit') && (
+                        <>
+                          <button
+                            onClick={() => handleComplete(task)}
+                            className="text-green-600 hover:text-green-900 mr-3"
+                            title="Mark Complete"
+                          >
+                            <CheckCircleIcon className="h-5 w-5 inline" />
+                          </button>
+                          <button
+                            onClick={() => handleCancel(task)}
+                            className="text-orange-600 hover:text-orange-900 mr-3"
+                            title="Cancel Task"
+                          >
+                            <XCircleIcon className="h-5 w-5 inline" />
+                          </button>
+                        </>
+                      )}
+                      {hasPermission('tasks', 'edit') && (
                         <button
-                          onClick={() => handleEdit(client)}
-                          className="text-blue-600 hover:text-blue-900 mr-4"
+                          onClick={() => handleEdit(task)}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
                         >
                           <PencilIcon className="h-5 w-5 inline" />
                         </button>
                       )}
-                      {hasPermission('clients', 'manage') && (
+                      {hasPermission('tasks', 'manage') && (
                         <button
-                          onClick={() => handleDelete(client.id)}
+                          onClick={() => handleDelete(task.id)}
                           className="text-red-600 hover:text-red-900"
                         >
                           <TrashIcon className="h-5 w-5 inline" />
@@ -528,22 +595,19 @@ function Clients() {
         </>
       )}
 
-      {/* Client Modal */}
+      {/* Task Modal */}
       {isModalOpen && (
-        <ClientModal
-          client={selectedClient}
+        <TaskModal
+          task={selectedTask}
           onClose={handleModalClose}
         />
       )}
 
       {/* Batch Action Modal */}
       {batchAction && (
-        <BatchModal
-          action={batchAction}
-          statuses={statuses}
-          groups={groups}
-          users={allUsers}
-          onSubmit={handleBatchSubmit}
+        <TaskBatchModal
+          taskTypes={taskTypes}
+          onSubmit={handleBatchModalSubmit}
           onClose={() => setBatchAction(null)}
         />
       )}
@@ -551,4 +615,4 @@ function Clients() {
   )
 }
 
-export default Clients
+export default Tasks

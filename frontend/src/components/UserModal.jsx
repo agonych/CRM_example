@@ -10,7 +10,6 @@ function UserModal({ user, onClose }) {
     password: '',
     password2: '',
     is_active: true,
-    is_user: true,
     is_superuser: false,
     groups: [],
   })
@@ -28,7 +27,6 @@ function UserModal({ user, onClose }) {
         password: '',
         password2: '',
         is_active: user.is_active ?? true,
-        is_user: user.is_user ?? true,
         is_superuser: user.is_superuser ?? false,
         groups: user.groups || [],
       })
@@ -202,16 +200,6 @@ function UserModal({ user, onClose }) {
                 className="mr-2"
               />
               <span className="text-sm text-gray-700">Active</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                name="is_user"
-                checked={formData.is_user}
-                onChange={handleChange}
-                className="mr-2"
-              />
-              <span className="text-sm text-gray-700">User</span>
             </label>
             <label className="flex items-center">
               <input

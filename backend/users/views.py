@@ -23,11 +23,43 @@ class UserViewSet(viewsets.ModelViewSet):
         checker = get_permission_checker(user)
         
         if user.is_superuser:
-            return User.objects.all()
-        
-        # Use permission checker to filter queryset
-        queryset = User.objects.all()
-        return checker.filter_queryset(queryset, 'users', 'read')
+            queryset = User.objects.all()
+        else:
+            # Use permission checker to filter queryset
+            queryset = User.objects.all()
+            queryset = checker.filter_queryset(queryset, 'users', 'read')
+
+        # Search by name
+        search = self.request.query_params.get('search')
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(first_name__icontains=search) | Q(last_name__icontains=search)
+            )
+
+        # Filter by group
+        group = self.request.query_params.get('group')
+        if group:
+            queryset = queryset.filter(crm_groups__id=group)
+
+        # Filter by role
+        role = self.request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(roles__id=role)
+
+        # Filter by active status
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+        # Filter by user type (user/admin)
+        user_type = self.request.query_params.get('user_type')
+        if user_type == 'admin':
+            queryset = queryset.filter(is_superuser=True)
+        elif user_type == 'user':
+            queryset = queryset.filter(is_superuser=False)
+
+        return queryset.distinct()
     
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -42,6 +74,14 @@ class UserViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
         return Response(serializer.data)
     
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Unlink M2M relationships before deletion
+        instance.assigned_clients.clear()
+        # FK fields (assigned_to, created_by on Task) use SET_NULL via on_delete
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
         """Get current user information."""

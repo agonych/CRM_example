@@ -124,6 +124,10 @@ class PermissionChecker:
                     q_objects |= Q(id=self.user.id)
                 elif hasattr(queryset.model, 'assigned_users'):
                     q_objects |= Q(assigned_users=self.user)
+                elif hasattr(queryset.model, 'assigned_to'):
+                    q_objects |= Q(assigned_to=self.user)
+                    if hasattr(queryset.model, 'created_by'):
+                        q_objects |= Q(created_by=self.user)
                 elif hasattr(queryset.model, 'user'):
                     q_objects |= Q(user=self.user)
                 elif hasattr(queryset.model, 'created_by'):
@@ -134,9 +138,14 @@ class PermissionChecker:
                 if user_groups.exists():
                     if hasattr(queryset.model, 'groups'):
                         q_objects |= Q(groups__in=user_groups)
+                    # For models linked to client with groups (e.g. Task -> Client -> Groups)
+                    elif hasattr(queryset.model, 'client') and hasattr(queryset.model.client.field.related_model, 'groups'):
+                        q_objects |= Q(client__groups__in=user_groups)
                     # Also include self-assigned
                     if hasattr(queryset.model, 'assigned_users'):
                         q_objects |= Q(assigned_users=self.user)
+                    elif hasattr(queryset.model, 'assigned_to'):
+                        q_objects |= Q(assigned_to=self.user)
                     # For groups module itself, check if user is in the group
                     if queryset.model.__name__ == 'Group':
                         q_objects |= Q(id__in=user_groups.values_list('id', flat=True))
@@ -148,8 +157,10 @@ class PermissionChecker:
         if obj is None:
             return perm_type  # For list views, return the permission type
         
-        # Check if object is assigned to user
+        # Check if object is assigned to user (M2M or FK)
         if hasattr(obj, 'assigned_users') and obj.assigned_users.filter(id=self.user.id).exists():
+            return 'self'
+        if hasattr(obj, 'assigned_to') and obj.assigned_to_id == self.user.id:
             return 'self'
         
         # Check if object is in user's groups

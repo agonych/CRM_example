@@ -346,3 +346,4 @@ PERMISSION_LEVELS = ['read', 'create', 'edit', 'manage', 'admin']  # Adjust as n
 - The permission system is extensible - new modules automatically integrate by adding a `permissions.py` file
 - Superusers (`is_superuser=True`) bypass all permission checks and have full access
 - The permission checker uses "highest level wins" logic when multiple permission rows apply
+

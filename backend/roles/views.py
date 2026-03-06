@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
@@ -35,6 +35,17 @@ class RoleViewSet(viewsets.ModelViewSet):
         
         self.perform_update(serializer)
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user_count = instance.users.count()
+        if user_count:
+            return Response(
+                {'error': f'Cannot delete role. It has {user_count} assigned user(s). Remove them first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class RolePermissionViewSet(viewsets.ModelViewSet):

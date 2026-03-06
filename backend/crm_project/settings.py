@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'groups',
     'roles',
     'clients',
+    'tasks',
 ]
 
 MIDDLEWARE = [

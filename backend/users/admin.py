@@ -5,21 +5,21 @@ from .models import User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'first_name', 'last_name', 'is_active', 'is_user', 'is_superuser', 'created_at')
-    list_filter = ('is_active', 'is_user', 'is_superuser', 'created_at')
+    list_display = ('email', 'first_name', 'last_name', 'is_active', 'is_superuser', 'created_at')
+    list_filter = ('is_active', 'is_superuser', 'created_at')
     search_fields = ('email', 'first_name', 'last_name')
     ordering = ('email',)
     
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name')}),
-        ('Permissions', {'fields': ('is_active', 'is_user', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Permissions', {'fields': ('is_active', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'created_at', 'last_access', 'last_edit', 'last_edited_by')}),
     )
     
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'first_name', 'last_name', 'password1', 'password2', 'is_active', 'is_user', 'is_superuser'),
+            'fields': ('email', 'first_name', 'last_name', 'password1', 'password2', 'is_active', 'is_superuser'),
         }),
     )

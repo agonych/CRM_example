@@ -12,14 +12,19 @@ class UserSerializer(serializers.ModelSerializer):
         many=True, queryset=Group.objects.all(), required=False, source='crm_groups'
     )
     roles = serializers.SerializerMethodField()
-    
+    group_names = serializers.SerializerMethodField()
+    role_names = serializers.SerializerMethodField()
+    assigned_clients_count = serializers.SerializerMethodField()
+    assigned_tasks_count = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'password',
-            'is_active', 'is_user', 'is_superuser',
+            'is_active', 'is_superuser',
             'created_at', 'last_access', 'last_edit', 'last_edited_by',
-            'groups', 'roles'
+            'groups', 'group_names', 'roles', 'role_names',
+            'assigned_clients_count', 'assigned_tasks_count',
         ]
         read_only_fields = ['id', 'created_at', 'last_access', 'last_edit', 'last_edited_by']
     
@@ -31,9 +36,21 @@ class UserSerializer(serializers.ModelSerializer):
             user.crm_groups.set(groups)
         return user
     
+    def get_group_names(self, obj):
+        return [g.name for g in obj.crm_groups.all()]
+
     def get_roles(self, obj):
         """Get role IDs for the user."""
         return [role.id for role in obj.roles.all()]
+
+    def get_role_names(self, obj):
+        return [r.name for r in obj.roles.all()]
+
+    def get_assigned_clients_count(self, obj):
+        return obj.assigned_clients.count()
+
+    def get_assigned_tasks_count(self, obj):
+        return obj.assigned_tasks.count()
     
     def update(self, instance, validated_data):
         groups = validated_data.pop('crm_groups', None)
@@ -56,17 +73,21 @@ class GroupSerializer(serializers.ModelSerializer):
     """Serializer for Group model."""
     users = serializers.PrimaryKeyRelatedField(many=True, queryset=User.objects.all(), required=False)
     user_count = serializers.SerializerMethodField()
-    
+    client_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Group
         fields = [
-            'id', 'name', 'is_active', 'users', 'user_count',
+            'id', 'name', 'is_active', 'users', 'user_count', 'client_count',
             'created_at', 'last_access', 'last_edit', 'last_edited_by'
         ]
         read_only_fields = ['id', 'created_at', 'last_access', 'last_edit', 'last_edited_by']
-    
+
     def get_user_count(self, obj):
         return obj.users.count()
+
+    def get_client_count(self, obj):
+        return obj.clients.count()
 
 
 class RoleSerializer(serializers.ModelSerializer):

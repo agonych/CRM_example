@@ -9,7 +9,8 @@ class GroupFactory(factory.django.DjangoModelFactory):
     
     class Meta:
         model = Group
-    
+        django_get_or_create = ('name',)
+
     name = factory.Sequence(lambda n: f"Group {n}")
     is_active = True
     created_at = factory.LazyFunction(timezone.now)

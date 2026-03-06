@@ -11,4 +11,5 @@ urlpatterns = [
     path('api/roles/', include('roles.urls')),
     path('api/clients/', include('clients.urls')),
     path('api/permissions/', include('permissions.urls')),
+    path('api/tasks/', include('tasks.urls')),
 ]
