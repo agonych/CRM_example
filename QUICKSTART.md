@@ -51,7 +51,7 @@ You'll be prompted for:
 ```bash
 python manage.py seed_data
 ```
-This creates 3 groups and 100 clients for testing.
+This creates sample groups, client statuses, task types, users, clients, and tasks for testing.
 
 ### Step 8: Start the backend server
 ```bash

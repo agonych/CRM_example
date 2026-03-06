@@ -4,9 +4,12 @@ A modular CRM system built with Django (backend) and React with Tailwind CSS (fr
 
 ## Features
 
-- **User Management**: Custom user model with groups and roles
+- **User Management**: Custom user model with groups and roles, search, filters, and active/inactive tabs
 - **Flexible Permission System**: Module-based permissions with multiple permission rows per role
-- **Client Management**: Full CRUD operations for client records
+- **Client Management**: Full CRUD with status tracking, group assignment, user assignment, and batch operations
+- **Task Management**: Task tracking with types, assignments, due dates, durations, monetary values, and batch operations
+- **Client Statuses**: Configurable client statuses with sort ordering
+- **Batch Operations**: Select multiple clients or tasks and perform bulk actions (change status, assign groups/users, set type, complete/cancel)
 - **Role-Based Access Control**: Granular permissions with ownership types (self/group/all) and access levels
 - **Modern UI**: React frontend with Tailwind CSS and responsive design
 - **Permission-Aware UI**: Menu items and actions hidden based on user permissions
@@ -17,11 +20,12 @@ A modular CRM system built with Django (backend) and React with Tailwind CSS (fr
 CRM_Example/
 ├── backend/          # Django backend
 │   ├── crm_project/  # Main Django project
-│   ├── users/        # Users app (User model only)
-│   ├── groups/       # Groups app (Group model)
-│   ├── roles/        # Roles app (Role and RolePermission models)
+│   ├── users/        # Users app
+│   ├── groups/       # Groups app
+│   ├── roles/        # Roles app
 │   ├── clients/      # Clients app
-│   ├── permissions/  # Permission system (registry and checker)
+│   ├── tasks/        # Tasks app
+│   ├── permissions/  # Permission system
 │   └── requirements.txt
 └── frontend/         # React frontend
     ├── src/
@@ -200,11 +204,32 @@ This bypasses the proxy and calls the backend directly.
 - `DELETE /api/roles/permissions/{id}/` - Delete role permission
 
 ### Clients
-- `GET /api/clients/` - List clients
+- `GET /api/clients/` - List clients (filters: `status`, `group`, `assigned_user`)
 - `POST /api/clients/` - Create client
 - `GET /api/clients/{id}/` - Get client
 - `PATCH /api/clients/{id}/` - Update client
 - `DELETE /api/clients/{id}/` - Delete client
+- `POST /api/clients/batch/` - Batch operations (actions: `change_status`, `add_to_group`, `remove_from_group`, `assign_users`)
+
+### Client Statuses
+- `GET /api/clients/statuses/` - List client statuses
+- `POST /api/clients/statuses/` - Create client status
+- `PATCH /api/clients/statuses/{id}/` - Update client status
+- `DELETE /api/clients/statuses/{id}/` - Delete client status (unlinks from clients)
+
+### Tasks
+- `GET /api/tasks/` - List tasks (filters: `status`, `task_type`, `group`, `assigned_to`, `client`)
+- `POST /api/tasks/` - Create task
+- `GET /api/tasks/{id}/` - Get task
+- `PATCH /api/tasks/{id}/` - Update task
+- `DELETE /api/tasks/{id}/` - Delete task
+- `POST /api/tasks/batch/` - Batch operations (actions: `complete`, `cancel`, `set_type`)
+
+### Task Types
+- `GET /api/tasks/types/` - List task types
+- `POST /api/tasks/types/` - Create task type
+- `PATCH /api/tasks/types/{id}/` - Update task type
+- `DELETE /api/tasks/types/{id}/` - Delete task type
 
 ### Permissions
 - `GET /api/permissions/available/` - Get all available module permissions (for role configuration)
@@ -271,7 +296,7 @@ This command:
 
 ### Seed Database
 
-Seed the database with sample data (groups and clients):
+Seed the database with sample data:
 
 ```bash
 python manage.py seed_data
@@ -279,14 +304,16 @@ python manage.py seed_data
 
 This command:
 - Creates 3 groups by default
-- Creates 100 clients (leads) by default
-- Randomly assigns clients to groups
-- Randomly assigns clients to users (if any exist)
+- Creates 3 client statuses (New Lead, Active, Inactive)
+- Creates 3 task types (Call, Meeting, Follow-up)
+- Creates 5 users with roles and group assignments
+- Creates 100 clients with random group and user assignments
+- Creates 200 tasks linked to clients with random types and assignments
 
-You can customize the number of groups and clients:
+You can customize the counts:
 
 ```bash
-python manage.py seed_data --groups 5 --clients 200
+python manage.py seed_data --groups 5 --clients 200 --users 10 --tasks 500
 ```
 
 ### Reset Database
